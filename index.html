@@ -116,11 +116,21 @@ function buildDeck() {
   });
 }
 
+// localStorage can throw (private mode, blocked); fall back to in-memory
+let memBest = 0;
+function getBest() {
+  try { return Number(localStorage.getItem("spaceQuizBest")) || 0; } catch { return memBest; }
+}
+function setBest(v) {
+  memBest = v;
+  try { localStorage.setItem("spaceQuizBest", String(v)); } catch {}
+}
+
 function render() {
   const [q, opts] = deck[i];
   locked = false;
   $("qnum").textContent = `Question ${i + 1} of ${QUESTIONS.length}`;
-  $("score").textContent = `Score: ${score}`;
+  $("score").textContent = `Score: ${score} · Best: ${getBest()}`;
   $("bar").style.width = `${(i / QUESTIONS.length) * 100}%`;
   $("barwrap").setAttribute("aria-valuenow", i);
   $("question").textContent = q;
@@ -140,7 +150,7 @@ function answer(idx, btn) {
   buttons.forEach(b => b.disabled = true);
   if (idx === correct) { score++; btn.classList.add("correct"); }
   else { btn.classList.add("wrong"); buttons[correct].classList.add("correct"); }
-  $("score").textContent = `Score: ${score}`;
+  $("score").textContent = `Score: ${score} · Best: ${getBest()}`;
   $("bar").style.width = `${((i + 1) / QUESTIONS.length) * 100}%`;
   $("barwrap").setAttribute("aria-valuenow", i + 1);
   const n = $("next");
@@ -153,7 +163,9 @@ function finish() {
   const [e, t] = score === 10 ? ["🚀","Mission perfect!"] : score >= 8 ? ["🌟","Stellar astronaut!"]
     : score >= 5 ? ["🛰️","Solid orbit!"] : ["☄️","Back to training!"];
   $("emoji").textContent = e; $("rtitle").textContent = t;
-  $("rtext").textContent = `You scored ${score} out of ${QUESTIONS.length}.`;
+  const isNew = score > getBest();
+  if (isNew) setBest(score);
+  $("rtext").textContent = `You scored ${score} out of ${QUESTIONS.length}. ${isNew ? "New best score! 🏆" : `Best: ${getBest()}`}`;
   $("restart").focus();
 }
 $("restart").onclick = () => { i = 0; score = 0; deck = buildDeck(); $("result").hidden = true; $("quiz").hidden = false; render(); };
