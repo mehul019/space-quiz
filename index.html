@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Space Quiz</title>
+<style>
+  :root {
+    --bg: #f3f5fb; --card: #ffffff; --text: #1b2236; --muted: #5b6482;
+    --accent: #4f46e5; --border: #d8ddee; --good: #16a34a; --bad: #dc2626;
+    --good-bg: #dcfce7; --bad-bg: #fee2e2; --glow: rgba(79,70,229,.25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0e1f; --card: #131a33; --text: #e8ecff; --muted: #9aa5cc;
+      --accent: #8b9cff; --border: #2a3560; --good: #4ade80; --bad: #f87171;
+      --good-bg: #0f3b24; --bad-bg: #4a1818; --glow: rgba(139,156,255,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px 16px;
+  }
+  main { width: 100%; max-width: 480px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,.08);
+  }
+  h1 {
+    font-size: 16px; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 16px;
+    color: var(--accent); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    box-shadow: inset 0 0 12px var(--glow);
+  }
+  h1::before { content: "● "; color: var(--good); }
+  .stats { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+  .bar { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 20px; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, #6366f1, #ec4899); transition: width .4s ease; }
+  h2 { font-size: 18px; margin: 0 0 16px; }
+  .answers { display: grid; gap: 10px; }
+  .answers button {
+    font: inherit; text-align: left; padding: 12px 14px; border-radius: 10px; cursor: pointer;
+    background: transparent; color: var(--text); border: 2px solid var(--border);
+    transition: transform .15s, border-color .15s, background .15s;
+  }
+  .answers button:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .answers button:disabled { cursor: default; }
+  .correct { background: var(--good-bg) !important; border-color: var(--good) !important; animation: pop .4s; }
+  .wrong { background: var(--bad-bg) !important; border-color: var(--bad) !important; animation: shake .45s; }
+  @keyframes pop { 50% { transform: scale(1.04); } }
+  @keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+  .next {
+    margin-top: 16px; width: 100%; font: inherit; font-weight: 600; padding: 12px; border: 0;
+    border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { .next { color: #0a0e1f; } }
+  .next[hidden] { display: none; }
+  .result { text-align: center; }
+  .emoji { font-size: 64px; }
+  .result p { color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Space Quiz</h1>
+    <div id="quiz">
+      <div class="stats"><span id="qnum" aria-live="polite"></span><span id="score"></span></div>
+      <div class="bar" role="progressbar" aria-label="Quiz progress" aria-valuemin="0" aria-valuemax="10" id="barwrap"><div id="bar"></div></div>
+      <h2 id="question"></h2>
+      <div class="answers" id="answers"></div>
+      <button class="next" id="next" hidden></button>
+    </div>
+    <div class="result" id="result" hidden>
+      <div class="emoji" id="emoji" aria-hidden="true"></div>
+      <h2 id="rtitle"></h2>
+      <p id="rtext"></p>
+      <button class="next" id="restart">Play again</button>
+    </div>
+  </div>
+</main>
+<script>
+const QUESTIONS = [
+  ["Which planet is known as the Red Planet?", ["Venus","Mars","Jupiter","Mercury"], 1],
+  ["What is the largest planet in our solar system?", ["Saturn","Neptune","Jupiter","Earth"], 2],
+  ["Who was the first human in space?", ["Neil Armstrong","Yuri Gagarin","Buzz Aldrin","John Glenn"], 1],
+  ["What is the closest star to Earth?", ["Sirius","Proxima Centauri","The Sun","Betelgeuse"], 2],
+  ["Which planet has the most prominent rings?", ["Saturn","Uranus","Mars","Mercury"], 0],
+  ["In what year did Apollo 11 land on the Moon?", ["1965","1969","1972","1959"], 1],
+  ["What galaxy is Earth in?", ["Andromeda","Triangulum","Milky Way","Whirlpool"], 2],
+  ["Which space telescope launched in 2021?", ["Hubble","Kepler","Spitzer","James Webb"], 3],
+  ["How many planets are in our solar system?", ["7","8","9","10"], 1],
+  ["What is the hottest planet in our solar system?", ["Mercury","Venus","Mars","Jupiter"], 1],
+];
+const $ = id => document.getElementById(id);
+let i = 0, score = 0, locked = false;
+
+function render() {
+  const [q, opts] = QUESTIONS[i];
+  locked = false;
+  $("qnum").textContent = `Question ${i + 1} of ${QUESTIONS.length}`;
+  $("score").textContent = `Score: ${score}`;
+  $("bar").style.width = `${(i / QUESTIONS.length) * 100}%`;
+  $("barwrap").setAttribute("aria-valuenow", i);
+  $("question").textContent = q;
+  $("next").hidden = true;
+  const box = $("answers"); box.innerHTML = "";
+  opts.forEach((text, idx) => {
+    const b = document.createElement("button");
+    b.textContent = text;
+    b.onclick = () => answer(idx, b);
+    box.appendChild(b);
+  });
+}
+function answer(idx, btn) {
+  if (locked) return; locked = true;
+  const correct = QUESTIONS[i][2];
+  const buttons = [...$("answers").children];
+  buttons.forEach(b => b.disabled = true);
+  if (idx === correct) { score++; btn.classList.add("correct"); }
+  else { btn.classList.add("wrong"); buttons[correct].classList.add("correct"); }
+  $("score").textContent = `Score: ${score}`;
+  $("bar").style.width = `${((i + 1) / QUESTIONS.length) * 100}%`;
+  $("barwrap").setAttribute("aria-valuenow", i + 1);
+  const n = $("next");
+  n.textContent = i === QUESTIONS.length - 1 ? "See results" : "Next question";
+  n.hidden = false; n.focus();
+}
+$("next").onclick = () => { if (++i < QUESTIONS.length) render(); else finish(); };
+function finish() {
+  $("quiz").hidden = true; $("result").hidden = false;
+  const [e, t] = score === 10 ? ["🚀","Mission perfect!"] : score >= 8 ? ["🌟","Stellar astronaut!"]
+    : score >= 5 ? ["🛰️","Solid orbit!"] : ["☄️","Back to training!"];
+  $("emoji").textContent = e; $("rtitle").textContent = t;
+  $("rtext").textContent = `You scored ${score} out of ${QUESTIONS.length}.`;
+  $("restart").focus();
+}
+$("restart").onclick = () => { i = 0; score = 0; $("result").hidden = true; $("quiz").hidden = false; render(); };
+render();
+</script>
+</body>
+</html>
