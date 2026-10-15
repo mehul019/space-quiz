@@ -98,10 +98,26 @@ const QUESTIONS = [
   ["What is the hottest planet in our solar system?", ["Mercury","Venus","Mars","Jupiter"], 1],
 ];
 const $ = id => document.getElementById(id);
-let i = 0, score = 0, locked = false;
+let i = 0, score = 0, locked = false, deck = [];
+
+function shuffle(a) {
+  a = a.slice();
+  for (let k = a.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    [a[k], a[j]] = [a[j], a[k]];
+  }
+  return a;
+}
+// Shuffle questions and answers while keeping track of the correct option
+function buildDeck() {
+  return shuffle(QUESTIONS).map(([q, opts, c]) => {
+    const order = shuffle(opts.map((text, idx) => ({ text, ok: idx === c })));
+    return [q, order.map(o => o.text), order.findIndex(o => o.ok)];
+  });
+}
 
 function render() {
-  const [q, opts] = QUESTIONS[i];
+  const [q, opts] = deck[i];
   locked = false;
   $("qnum").textContent = `Question ${i + 1} of ${QUESTIONS.length}`;
   $("score").textContent = `Score: ${score}`;
@@ -119,7 +135,7 @@ function render() {
 }
 function answer(idx, btn) {
   if (locked) return; locked = true;
-  const correct = QUESTIONS[i][2];
+  const correct = deck[i][2];
   const buttons = [...$("answers").children];
   buttons.forEach(b => b.disabled = true);
   if (idx === correct) { score++; btn.classList.add("correct"); }
@@ -140,7 +156,8 @@ function finish() {
   $("rtext").textContent = `You scored ${score} out of ${QUESTIONS.length}.`;
   $("restart").focus();
 }
-$("restart").onclick = () => { i = 0; score = 0; $("result").hidden = true; $("quiz").hidden = false; render(); };
+$("restart").onclick = () => { i = 0; score = 0; deck = buildDeck(); $("result").hidden = true; $("quiz").hidden = false; render(); };
+deck = buildDeck();
 render();
 </script>
 </body>
